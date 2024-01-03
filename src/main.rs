@@ -183,11 +183,12 @@ fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> 
             .read(true)
             .open(&source)
             .context(format!("Config's source '{source}' was not found!"))?;
-        let mut config_dest = OpenOptions::new().write(true).create(true).open(target)?;
+        let mut config_dest = OpenOptions::new().write(true).create(true).open(&target)?;
 
         let mut reading_string = String::new();
         config_source.read_to_string(&mut reading_string)?;
         config_dest.write_all(reading_string.as_bytes())?;
+        println!("INFO: {source} -> {target}");
     } else {
         todo!("Symlinking is not supported yet!");
     }
@@ -226,7 +227,13 @@ fn install(config_file: String) -> anyhow::Result<()> {
         let mut file = OpenOptions::new().read(true).open(&doot_file)?;
         file.read_to_string(&mut read_string)?;
 
-        let config: DootConfig = toml::from_str(&read_string).unwrap();
+        let config = match toml::from_str::<DootConfig>(&read_string) {
+            Ok(ok) => ok,
+            Err(err) => {
+                println!("Not valid doot file: '{doot_file}: Skipping... \n{err}");
+                continue;
+            }
+        };
         println!("Config: {config:#?}");
         let current_dir = std::env::current_dir()?
             .into_os_string()
