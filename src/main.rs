@@ -10,24 +10,28 @@ use std::{
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct CommandLine {
-    #[command(subcommand)]
+    #[command(subcommand, about)]
     command: Command,
 }
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Creates a new Dotter Directory
     New {
-        // Optional configuration tag
+        /// Optional configuration tag
         config_name: Option<String>,
     },
+    /// Removes a Dotter Directory
     Remove {
-        // Configuration to remove
+        /// Configuration to remove
         config_name: String,
     },
+    /// Installs a Dotter Directory
     Install {
-        // Optional configuration tag to install from
+        /// Optional configuration tag to install from
         config_name: Option<String>,
     },
+    /// Lists all Dotter Directories
     List,
 }
 
@@ -72,6 +76,28 @@ fn new(config_file: String) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn user_boolean(question: &str, yes_no_bias: bool) -> anyhow::Result<bool> {
+    loop {
+        if yes_no_bias {
+            print!("{question} [Y, n]: ");
+        } else {
+            print!("{question} [y, N]: ");
+        }
+        std::io::stdout().flush()?;
+
+        let mut user_line = String::new();
+        std::io::stdin().read_line(&mut user_line)?;
+        let user_line = user_line.trim();
+
+        match user_line.to_lowercase().as_str() {
+            "y" => break Ok(true),
+            "n" | "" => break Ok(false),
+
+            _ => println!("Please use 'y', or 'n'!"),
+        }
+    }
+}
+
 fn remove(config_file: String) -> anyhow::Result<()> {
     println!("Removing Config: {config_file}");
 
@@ -84,23 +110,10 @@ fn remove(config_file: String) -> anyhow::Result<()> {
 
     println!("Removing: {files_to_remove:?}");
 
-    loop {
-        print!("Are you sure you want to remove [y, N]: ");
-        std::io::stdout().flush()?;
-
-        let mut user_line = String::new();
-        std::io::stdin().read_line(&mut user_line)?;
-        let user_line = user_line.trim();
-
-        match user_line.to_lowercase().as_str() {
-            "y" => break,
-            "n" | "" => {
-                println!("Canceled!");
-                return Ok(());
-            }
-
-            _ => println!("Please use 'y', or 'n'!"),
-        }
+    let user_bool = user_boolean("Are you sure you want to remove these files", false)?;
+    if !user_bool {
+        println!("Canceled");
+        return Ok(());
     }
 
     println!("Deleting Files...");
@@ -130,6 +143,29 @@ struct Config {
     ask: Option<bool>,
 }
 
+fn install_config(config: Config, filename: String) -> anyhow::Result<()> {
+    let Config {
+        target,
+        source,
+        symlink,
+        topic,
+        ask,
+    } = config;
+    let symlink = symlink.unwrap_or(true);
+    let ask = ask.unwrap_or(true);
+
+    let user_topic = topic.unwrap_or(filename);
+    println!("Package: {user_topic}");
+
+    let should_install = if ask {
+        user_boolean("Are you sure you want to install?", true)?
+    } else {
+        true
+    };
+
+    Ok(())
+}
+
 fn install(config_file: String) -> anyhow::Result<()> {
     if config_file.contains(".") {
         bail!("Invalid name '{config_file}'. Please use a doot directory name!");
@@ -156,13 +192,14 @@ fn install(config_file: String) -> anyhow::Result<()> {
     }
 
     println!("Found toml files: {doots:?}");
-    for config in doots {
+    for doot_file in doots {
         let mut read_string = String::new();
-        let mut file = OpenOptions::new().read(true).open(config)?;
+        let mut file = OpenOptions::new().read(true).open(&doot_file)?;
         file.read_to_string(&mut read_string)?;
 
         let config: DootConfig = toml::from_str(&read_string).unwrap();
         println!("Config: {config:#?}");
+        install_config(config.config, doot_file.to_string())?;
     }
     Ok(())
 }
