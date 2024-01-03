@@ -219,10 +219,12 @@ fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> 
             let mut reading_string = String::new();
             config_source.read_to_string(&mut reading_string)?;
             config_dest.write_all(reading_string.as_bytes())?;
-        } else {
-            println!("Debug enabled, skipping...");
         }
-        println!("INFO: {source} -> {target}");
+        if debug {
+            println!("DEBUG: {source} -> {target}");
+        } else {
+            println!("COPY: {source} -> {target}");
+        }
     }
 
     Ok(())
