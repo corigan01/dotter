@@ -4,6 +4,7 @@ use serde::Deserialize;
 use std::{
     fs::OpenOptions,
     io::{Read, Write},
+    os::unix::fs,
     path::Path,
 };
 
@@ -144,14 +145,14 @@ struct Config {
     ask: Option<bool>,
 }
 
-fn install_config(config: DootConfig) -> anyhow::Result<()> {
+fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> {
     let Config {
         target,
         source,
         symlink,
         ask,
     } = config.config;
-    let symlink = symlink.unwrap_or(true);
+    let symlink = symlink.unwrap_or(false);
     let ask = ask.unwrap_or(true);
 
     let DootItems {
@@ -161,7 +162,7 @@ fn install_config(config: DootConfig) -> anyhow::Result<()> {
         version,
     } = config.doot;
     println!(
-        "Package:\n\tName: {name}\n\tTopic: {topic}\n\tAuthors: {authors:?}\n\tVersion: {version}"
+        "Package:\n\tName:     {name}\n\tTopic:    {topic}\n\tAuthors:  {authors:?}\n\tVersion:  {version}"
     );
 
     let should_install = if ask {
@@ -175,15 +176,21 @@ fn install_config(config: DootConfig) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    let source = format!("{parent_dir}/{source}");
+    let target = format!("{parent_dir}/{target}");
+
     if !symlink {
-        let mut config_source = OpenOptions::new().read(true).open(source)?;
+        let mut config_source = OpenOptions::new()
+            .read(true)
+            .open(&source)
+            .context(format!("Config's source '{source}' was not found!"))?;
         let mut config_dest = OpenOptions::new().write(true).create(true).open(target)?;
 
         let mut reading_string = String::new();
         config_source.read_to_string(&mut reading_string)?;
         config_dest.write_all(reading_string.as_bytes())?;
     } else {
-        todo!()
+        todo!("Symlinking is not supported yet!");
     }
 
     Ok(())
@@ -222,7 +229,11 @@ fn install(config_file: String) -> anyhow::Result<()> {
 
         let config: DootConfig = toml::from_str(&read_string).unwrap();
         println!("Config: {config:#?}");
-        install_config(config)?;
+        let current_dir = std::env::current_dir()?
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        install_config(config, format!("{current_dir}/{config_file}"))?;
     }
     Ok(())
 }
