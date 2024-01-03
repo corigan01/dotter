@@ -4,7 +4,6 @@ use serde::Deserialize;
 use std::{
     fs::OpenOptions,
     io::{Read, Write},
-    os::unix::fs,
     path::Path,
 };
 
