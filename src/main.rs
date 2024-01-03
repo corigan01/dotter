@@ -238,8 +238,9 @@ fn install(config_file: String) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn list() {
+fn list() -> anyhow::Result<()> {
     println!("Listing configs");
+    todo!()
 }
 
 fn main() -> anyhow::Result<()> {
@@ -256,7 +257,7 @@ fn main() -> anyhow::Result<()> {
             install(config_name)?;
         }
         Command::List => {
-            list();
+            list()?;
         }
     }
 
