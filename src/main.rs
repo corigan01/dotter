@@ -1,7 +1,11 @@
-use std::{io::Write, path::Path};
-
 use anyhow::{bail, Context};
 use clap::{Parser, Subcommand};
+use serde::Deserialize;
+use std::{
+    fs::OpenOptions,
+    io::{Read, Write},
+    path::Path,
+};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -28,14 +32,14 @@ enum Command {
 }
 
 const DEFAULT_CONFIG_NAME: &str = "default";
-const DEFAULT_CONFIG_CONTENTS: &str = r#"
-[doot]
+const DEFAULT_CONFIG_CONTENTS: &str = r#"[doot]
 name = "example"
 authors = ["your name"]
 version = "0.0.1"
 
 [config]
-location = "~/.config/my_config/config.toml"
+target = "~/.config/my_config/config.txt"
+source = "config.txt"
 symlink = false
 topic = "My example config for example program!"
 ask = true
@@ -104,8 +108,63 @@ fn remove(config_file: String) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn install(config_file: String) {
-    println!("Installing config file {config_file}");
+#[derive(Deserialize, Debug)]
+struct DootConfig {
+    doot: DootItems,
+    config: Config,
+}
+
+#[derive(Deserialize, Debug)]
+struct DootItems {
+    name: String,
+    authors: Vec<String>,
+    version: String,
+}
+
+#[derive(Deserialize, Debug)]
+struct Config {
+    target: String,
+    source: String,
+    symlink: Option<bool>,
+    topic: Option<String>,
+    ask: Option<bool>,
+}
+
+fn install(config_file: String) -> anyhow::Result<()> {
+    if config_file.contains(".") {
+        bail!("Invalid name '{config_file}'. Please use a doot directory name!");
+    }
+
+    let mut doots = Vec::new();
+    for file in Path::new(&config_file).read_dir()? {
+        let file = file?;
+        if file.file_type()?.is_dir() {
+            continue;
+        }
+
+        if !file
+            .file_name()
+            .as_os_str()
+            .to_str()
+            .unwrap()
+            .ends_with(".toml")
+        {
+            continue;
+        }
+
+        doots.push(file.path().into_os_string().into_string().unwrap());
+    }
+
+    println!("Found toml files: {doots:?}");
+    for config in doots {
+        let mut read_string = String::new();
+        let mut file = OpenOptions::new().read(true).open(config)?;
+        file.read_to_string(&mut read_string)?;
+
+        let config: DootConfig = toml::from_str(&read_string).unwrap();
+        println!("Config: {config:#?}");
+    }
+    Ok(())
 }
 
 fn list() {
@@ -123,7 +182,7 @@ fn main() -> anyhow::Result<()> {
         Command::Remove { config_name } => remove(config_name)?,
         Command::Install { config_name } => {
             let config_name = config_name.unwrap_or(DEFAULT_CONFIG_NAME.into());
-            install(config_name);
+            install(config_name)?;
         }
         Command::List => {
             list();
