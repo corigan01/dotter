@@ -138,9 +138,8 @@ struct DootItems {
 
 #[derive(Deserialize, Debug)]
 struct Config {
-    target: String,
-    source: String,
-    symlink: Option<bool>,
+    target: Vec<String>,
+    source: Vec<String>,
     ask: Option<bool>,
 }
 
@@ -148,10 +147,8 @@ fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> 
     let Config {
         target,
         source,
-        symlink,
         ask,
     } = config.config;
-    let symlink = symlink.unwrap_or(false);
     let ask = ask.unwrap_or(true);
 
     let DootItems {
@@ -175,10 +172,22 @@ fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> 
         return Ok(());
     }
 
-    let source = format!("{parent_dir}/{source}");
-    let target = format!("{parent_dir}/{target}");
+    if source.len() != target.len() {
+        bail!(
+            "There are {} sources, but found {} targets, source and targets must match!",
+            source.len(),
+            target.len()
+        );
+    }
 
-    if !symlink {
+    if source.len() == 0 {
+        bail!("There must be at least one 'source' and 'target' pair!");
+    }
+
+    for (source, target) in source.iter().zip(target.iter()) {
+        let source = format!("{parent_dir}/{source}");
+        let target = format!("{parent_dir}/{target}");
+
         let mut config_source = OpenOptions::new()
             .read(true)
             .open(&source)
@@ -189,8 +198,6 @@ fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> 
         config_source.read_to_string(&mut reading_string)?;
         config_dest.write_all(reading_string.as_bytes())?;
         println!("INFO: {source} -> {target}");
-    } else {
-        todo!("Symlinking is not supported yet!");
     }
 
     Ok(())
