@@ -10,7 +10,7 @@ use std::{
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct CommandLine {
-    #[command(subcommand, about)]
+    #[command(subcommand)]
     command: Command,
 }
 
@@ -91,7 +91,8 @@ fn user_boolean(question: &str, yes_no_bias: bool) -> anyhow::Result<bool> {
 
         match user_line.to_lowercase().as_str() {
             "y" => break Ok(true),
-            "n" | "" => break Ok(false),
+            "n" => break Ok(false),
+            "" => break Ok(yes_no_bias),
 
             _ => println!("Please use 'y', or 'n'!"),
         }
@@ -130,6 +131,7 @@ struct DootConfig {
 #[derive(Deserialize, Debug)]
 struct DootItems {
     name: String,
+    topic: String,
     authors: Vec<String>,
     version: String,
 }
@@ -139,29 +141,50 @@ struct Config {
     target: String,
     source: String,
     symlink: Option<bool>,
-    topic: Option<String>,
     ask: Option<bool>,
 }
 
-fn install_config(config: Config, filename: String) -> anyhow::Result<()> {
+fn install_config(config: DootConfig) -> anyhow::Result<()> {
     let Config {
         target,
         source,
         symlink,
-        topic,
         ask,
-    } = config;
+    } = config.config;
     let symlink = symlink.unwrap_or(true);
     let ask = ask.unwrap_or(true);
 
-    let user_topic = topic.unwrap_or(filename);
-    println!("Package: {user_topic}");
+    let DootItems {
+        name,
+        topic,
+        authors,
+        version,
+    } = config.doot;
+    println!(
+        "Package:\n\tName: {name}\n\tTopic: {topic}\n\tAuthors: {authors:?}\n\tVersion: {version}"
+    );
 
     let should_install = if ask {
         user_boolean("Are you sure you want to install?", true)?
     } else {
         true
     };
+
+    if !should_install {
+        println!("Skipped...");
+        return Ok(());
+    }
+
+    if !symlink {
+        let mut config_source = OpenOptions::new().read(true).open(source)?;
+        let mut config_dest = OpenOptions::new().write(true).create(true).open(target)?;
+
+        let mut reading_string = String::new();
+        config_source.read_to_string(&mut reading_string)?;
+        config_dest.write_all(reading_string.as_bytes())?;
+    } else {
+        todo!()
+    }
 
     Ok(())
 }
@@ -199,7 +222,7 @@ fn install(config_file: String) -> anyhow::Result<()> {
 
         let config: DootConfig = toml::from_str(&read_string).unwrap();
         println!("Config: {config:#?}");
-        install_config(config.config, doot_file.to_string())?;
+        install_config(config)?;
     }
     Ok(())
 }
