@@ -40,13 +40,13 @@ const DEFAULT_CONFIG_CONTENTS: &str = r#"[doot]
 name = "example"
 authors = ["your name"]
 version = "0.0.1"
+topic = "My example config for example program!"
 
 [config]
-target = "~/.config/my_config/config.txt"
-source = "config.txt"
-symlink = false
-topic = "My example config for example program!"
+target = ["~/.config/my_config/config.txt"]
+source = ["config.txt"]
 ask = true
+debug = true
 "#;
 
 fn make_new_doot(file_name: &str) -> anyhow::Result<()> {
@@ -141,6 +141,7 @@ struct Config {
     target: Vec<String>,
     source: Vec<String>,
     ask: Option<bool>,
+    debug: Option<bool>,
 }
 
 fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> {
@@ -148,8 +149,10 @@ fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> 
         target,
         source,
         ask,
+        debug,
     } = config.config;
     let ask = ask.unwrap_or(true);
+    let debug = debug.unwrap_or(false);
 
     let DootItems {
         name,
@@ -184,19 +187,41 @@ fn install_config(config: DootConfig, parent_dir: String) -> anyhow::Result<()> 
         bail!("There must be at least one 'source' and 'target' pair!");
     }
 
+    let user_home = std::env::var_os("HOME")
+        .context("Could not find home dir, please set HOME enviroment var!")?
+        .to_os_string()
+        .into_string()
+        .unwrap();
+
     for (source, target) in source.iter().zip(target.iter()) {
-        let source = format!("{parent_dir}/{source}");
-        let target = format!("{parent_dir}/{target}");
+        let parent_dir = Path::new(&parent_dir);
+        let source = parent_dir
+            .join(Path::new(&source))
+            .canonicalize()
+            .context("Could not join source path")?
+            .into_os_string()
+            .into_string()
+            .unwrap();
 
-        let mut config_source = OpenOptions::new()
-            .read(true)
-            .open(&source)
-            .context(format!("Config's source '{source}' was not found!"))?;
-        let mut config_dest = OpenOptions::new().write(true).create(true).open(&target)?;
+        let target = parent_dir
+            .join(Path::new(&target.as_str().replace("~", &user_home)))
+            .into_os_string()
+            .into_string()
+            .unwrap();
 
-        let mut reading_string = String::new();
-        config_source.read_to_string(&mut reading_string)?;
-        config_dest.write_all(reading_string.as_bytes())?;
+        if !debug {
+            let mut config_source = OpenOptions::new()
+                .read(true)
+                .open(&source)
+                .context(format!("Config's source '{source}' was not found!"))?;
+            let mut config_dest = OpenOptions::new().write(true).create(true).open(&target)?;
+
+            let mut reading_string = String::new();
+            config_source.read_to_string(&mut reading_string)?;
+            config_dest.write_all(reading_string.as_bytes())?;
+        } else {
+            println!("Debug enabled, skipping...");
+        }
         println!("INFO: {source} -> {target}");
     }
 
@@ -241,7 +266,7 @@ fn install(config_file: String) -> anyhow::Result<()> {
                 continue;
             }
         };
-        println!("Config: {config:#?}");
+        //println!("Config: {config:#?}");
         let current_dir = std::env::current_dir()?
             .into_os_string()
             .into_string()
