@@ -2,7 +2,7 @@ use anyhow::{bail, Context};
 use clap::{Parser, Subcommand};
 use serde::Deserialize;
 use std::{
-    fs::OpenOptions,
+    fs::{self ,OpenOptions},
     io::{Read, Write},
     path::Path,
 };
@@ -278,9 +278,27 @@ fn install(config_file: String) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn list() -> anyhow::Result<()> {
+fn list() {
     println!("Listing configs");
-    todo!()
+    let paths = fs::read_dir("./").unwrap();
+    for path in paths {
+        let entry = path.unwrap();
+        if entry.file_type().unwrap().is_dir() {
+            
+            for entry in fs::read_dir(entry.path()).unwrap() {
+                let entry = entry.unwrap();
+                let file_name = entry.file_name();
+        
+                if let Some(name) = file_name.to_str() {
+                    if name.ends_with(".toml") {
+                        println!("Found TOML file: {}", entry.path().display());
+                    }
+                }
+            }
+        }
+    }
+    println!("if you want to install a config type 'dotter install <config_name>'")
+    // todo!()
 }
 
 fn main() -> anyhow::Result<()> {
@@ -297,7 +315,7 @@ fn main() -> anyhow::Result<()> {
             install(config_name)?;
         }
         Command::List => {
-            list()?;
+            list();
         }
     }
 
