@@ -278,15 +278,15 @@ fn install(config_file: String) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn list() {
+fn list() -> anyhow::Result<()> {
     println!("Listing configs");
-    let paths = fs::read_dir("./").unwrap();
+    let paths = fs::read_dir("./")?;
     for path in paths {
-        let entry = path.unwrap();
-        if entry.file_type().unwrap().is_dir() {
+        let entry = path?;
+        if entry.file_type()?.is_dir() {
             
-            for entry in fs::read_dir(entry.path()).unwrap() {
-                let entry = entry.unwrap();
+            for entry in fs::read_dir(entry.path())? {
+                let entry = entry?;
                 let file_name = entry.file_name();
         
                 if let Some(name) = file_name.to_str() {
@@ -297,8 +297,9 @@ fn list() {
             }
         }
     }
-    println!("if you want to install a config type 'dotter install <config_name>'")
+    println!("if you want to install a config type 'dotter install <config_name>'");
     // todo!()
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -315,7 +316,7 @@ fn main() -> anyhow::Result<()> {
             install(config_name)?;
         }
         Command::List => {
-            list();
+            list()?;
         }
     }
 
